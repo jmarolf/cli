@@ -92,14 +92,14 @@ namespace Microsoft.DotNet.Tools.CrossGen.Outputs
 
             foreach (var lib in _workItems)
             {
-                Reporter.Output.WriteLine($"CrossGen'ing {lib.Lib.Name}");
+                Reporter.Verbose.WriteLine($"CrossGen'ing {lib.Lib.Name}");
                 foreach (var item in lib.WorkItems)
                 {
                     Directory.CreateDirectory(item.DestinationDir);
                     _crossGenCmds.CrossGenAssembly(AppDir, item.Source, platformAssembliesPaths, item.DestinationDir, _generatePDB);
-                    Reporter.Output.WriteLine($"Done CrossGen'd asset {item.Source}, destination directory {item.DestinationDir}");
+                    Reporter.Verbose.WriteLine($"Done CrossGen'd asset {item.Source}, destination directory {item.DestinationDir}");
                 }
-                Reporter.Output.WriteLine($"Finished crossGen'ing {lib.Lib.Name}");
+                Reporter.Verbose.WriteLine($"Finished crossGen'ing {lib.Lib.Name}");
                 OnCrossGenCompletedFor(lib.Lib);
             }
             OnCrossGenCompleted();
@@ -121,7 +121,7 @@ namespace Microsoft.DotNet.Tools.CrossGen.Outputs
 
                     if (!string.IsNullOrEmpty(runtime) && runtime != _crossGenTarget.RID && !_runtimeFallbacks.Contains(runtime))
                     {
-                        Reporter.Output.WriteLine($"Skipping assets [{string.Join(", ", assetGroup.AssetPaths)}] because targeted runtime was {runtime}");
+                        Reporter.Verbose.WriteLine($"Skipping assets [{string.Join(", ", assetGroup.AssetPaths)}] because targeted runtime was {runtime}");
                     }
                     else
                     {
@@ -228,10 +228,10 @@ namespace Microsoft.DotNet.Tools.CrossGen.Outputs
             return Path.Combine(AppDir, "runtimes", rid, "lib");
         }
 
-        protected abstract string GetOutputDirFor(string sourcePathUsed, RuntimeLibrary lib, string assetPath);
         protected virtual bool ShouldCrossGenLib(RuntimeLibrary lib) { return true; }
         protected virtual void OnCrossGenCompletedFor(RuntimeLibrary lib) { }
         protected virtual void OnCrossGenCompleted() { }
+        protected abstract string GetOutputDirFor(string sourcePathUsed, RuntimeLibrary lib, string assetPath);
 
     }
 }

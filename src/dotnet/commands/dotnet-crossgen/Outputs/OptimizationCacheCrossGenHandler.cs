@@ -1,6 +1,7 @@
 // Copyright (c) .NET Foundation and contributors. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System;
 using System.IO;
 using System.Linq;
 using Microsoft.DotNet.Cli.Utils;
@@ -9,6 +10,9 @@ using Microsoft.Extensions.DependencyModel;
 
 namespace Microsoft.DotNet.Tools.CrossGen.Outputs
 {
+    /// <summary>
+    /// NuGet logic warning: Move out if/when needed
+    /// </summary>
     public class OptimizationCacheCrossGenHandler : CrossGenHandler
     {
         // looks like the hash value "{Algorithm}-{value}" should be handled as an opaque string
@@ -34,7 +38,7 @@ namespace Microsoft.DotNet.Tools.CrossGen.Outputs
 
         protected override string GetOutputDirFor(string sourcePathUsed, RuntimeLibrary lib, string assetPath)
         {
-            var libRoot = GetLibRoot(lib);
+            var libRoot = GetOutputRootForLib(lib);
             var targetLocation = Path.Combine(libRoot, assetPath);
             return Path.GetDirectoryName(targetLocation);
         }
@@ -52,11 +56,14 @@ namespace Microsoft.DotNet.Tools.CrossGen.Outputs
                 var shaLocation = GetShaLocation(lib);
                 File.WriteAllText(shaLocation, sha);
             }
+
+            // TODO: Copy everything needed.
+            // aspnet/BuildTools/DependenciesPackager
         }
 
         private string GetShaLocation(RuntimeLibrary lib)
         {
-            var libRoot = GetLibRoot(lib);
+            var libRoot = GetOutputRootForLib(lib);
             return Path.Combine(libRoot, $"{lib.Name}.{lib.Version}.nupkg.sha512");
         }
 
@@ -98,7 +105,7 @@ namespace Microsoft.DotNet.Tools.CrossGen.Outputs
             }
         }
 
-        private string GetLibRoot(RuntimeLibrary lib)
+        private string GetOutputRootForLib(RuntimeLibrary lib)
         {
             return Path.Combine(OutputRoot, _archName, lib.Name, lib.Version);
         }

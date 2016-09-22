@@ -22,7 +22,6 @@ namespace Microsoft.DotNet.Tools.CrossGen
         private readonly string _appName;
         private readonly string _appDir;
         private readonly bool _generatePDB;
-
         private CrossGenTarget _crossGenTarget;
 
         /// <summary>
@@ -53,6 +52,9 @@ namespace Microsoft.DotNet.Tools.CrossGen
                 throw new CrossGenException($"Deps {depsFilePath} file not found");
             }
 
+            string sharedFrameworkDir;
+            NuGetFramework framework;
+            string rid;
             using (var reader = new DependencyContextJsonReader())
             {
                 using (var fstream = new FileStream(depsFilePath, FileMode.Open))
@@ -65,13 +67,19 @@ namespace Microsoft.DotNet.Tools.CrossGen
                     throw new CrossGenException($"Unexpected error while reading {depsFilePath}");
                 }
 
-                var runtimeConfig = DetermineCrossGenTarget();
-
-                if (_crossGenTarget.IsPortable)
+                var runtimeConfigPath = Path.Combine(_appDir, $"{_appName}.runtimeconfig.json");
+                RuntimeConfig runtimeConfig = null;
+                if (File.Exists(runtimeConfigPath))
                 {
-                    // assert RuntimeConfig != null
-                    var sharedFrameworkName = runtimeConfig.Framework.Name;
-                    var shreadFrameworkDepsFile = Path.Combine(_crossGenTarget.SharedFrameworkDir, $"{sharedFrameworkName}.deps.json");
+                    runtimeConfig = new RuntimeConfig(runtimeConfigPath);
+                }
+
+                if (runtimeConfig != null && runtimeConfig.IsPortable)
+                {
+                    // This is portable app
+                    Reporter.Verbose.WriteLine($"This is a portable app, runtime config file: {runtimeConfigPath}");
+                    sharedFrameworkDir = LocateSharedFramework(runtimeConfig.Framework);
+                    var shreadFrameworkDepsFile = Path.Combine(sharedFrameworkDir, $"{runtimeConfig.Framework.Name}.deps.json");
                     if (!File.Exists(shreadFrameworkDepsFile))
                     {
                         throw new CrossGenException($"Cannot locate share framework's deps file {shreadFrameworkDepsFile}");
@@ -82,6 +90,10 @@ namespace Microsoft.DotNet.Tools.CrossGen
                         _runtimeContext = reader.Read(fstream);
                     }
 
+                    // After merging, framework and rid would be gone. So do this pre-merge.
+                    framework = NuGetFramework.Parse(_runtimeContext.Target.Framework);
+                    rid = _runtimeContext.Target.Runtime;
+
                     if (_runtimeContext == null)
                     {
                         throw new CrossGenException($"Unable to load shared framework context from {shreadFrameworkDepsFile}");
@@ -91,10 +103,20 @@ namespace Microsoft.DotNet.Tools.CrossGen
                 }
                 else
                 {
-                    // For standalone app, deps file context is the runtime context
+                    Reporter.Verbose.WriteLine($"This is a standalone app, runtime config file: {(runtimeConfig == null ? runtimeConfigPath : "None")}");
+                    sharedFrameworkDir = null;
                     _runtimeContext = _depsFileContext;
+                    framework = NuGetFramework.Parse(_runtimeContext.Target.Framework);
+                    rid = _runtimeContext.Target.Runtime;
                 }
             }
+
+            if (framework.Framework != ".NETCoreApp")
+            {
+                throw new CrossGenException($"App targets {_crossGenTarget.Framework.Framework} cannot be CrossGen'd, supported frameworks: [.NETCoreApp].");
+            }
+
+            _crossGenTarget = new CrossGenTarget(framework, rid, sharedFrameworkDir);
 
             Reporter.Verbose.WriteLine($"CrossGen will be performed to target Framework: {_crossGenTarget.Framework}, RID: {_crossGenTarget.RID}");
         }
@@ -124,34 +146,6 @@ namespace Microsoft.DotNet.Tools.CrossGen
             crossGenHandler.ExecuteCrossGen();
         }
 
-        private RuntimeConfig DetermineCrossGenTarget()
-        {
-            var runtimeConfigPath = Path.Combine(_appDir, $"{_appName}.runtimeconfig.json");
-            RuntimeConfig runtimeConfig = null;
-            if (File.Exists(runtimeConfigPath))
-            {
-                runtimeConfig = new RuntimeConfig(runtimeConfigPath);
-            }
-
-            if (runtimeConfig != null && runtimeConfig.IsPortable)
-            {
-                Reporter.Verbose.WriteLine($"This is a portable app, runtime config file: {runtimeConfigPath}");
-                GetCrossGenTargetForPortable(runtimeConfig);
-            }
-            else
-            {
-                Reporter.Verbose.WriteLine($"This is a standalone app, runtime config file: {(runtimeConfig == null ? runtimeConfigPath : "None")}");
-                GetCrossGenTargetForSelfContained();
-            }
-            
-            if (_crossGenTarget.Framework.Framework != ".NETCoreApp")
-            {
-                throw new CrossGenException($"App targets {_crossGenTarget.Framework.Framework} cannot be CrossGen'd, supported frameworks: [.NETCoreApp].");
-            }
-
-            return runtimeConfig;
-        }
-
         private string FindDiaSymReader()
         {
             var targetRid = _crossGenTarget.RID;
@@ -160,7 +154,7 @@ namespace Microsoft.DotNet.Tools.CrossGen
             IEnumerable<string> ridList = new string[] { targetRid };
             if (ridFallback == null)
             {
-                Reporter.Output.WriteLine($"Runtime {targetRid} fallback is not defined.");
+                Reporter.Verbose.WriteLine($"Runtime {targetRid} fallback is not defined.");
                 ridList = new string[] { targetRid };
             }
             else
@@ -189,30 +183,8 @@ namespace Microsoft.DotNet.Tools.CrossGen
                 throw new CrossGenException($"Failed to locate DiaSymReader for runtime {targetRid}");
             }
 
-            Reporter.Output.WriteLine($"Found DiaSymReader {foundLocation}");
+            Reporter.Verbose.WriteLine($"Found DiaSymReader {foundLocation}");
             return foundLocation;
-        }
-
-        ////////////////////////////////////////////////////////////
-        /// Get the CrossGenTarget from deps file
-        ////////////////////////////////////////////////////////////
-        private void GetCrossGenTargetForSelfContained()
-        {
-            var framework = NuGetFramework.Parse(_depsFileContext.Target.Framework);
-            var rid = _depsFileContext.Target.Runtime;
-            _crossGenTarget = CrossGenTarget.CreateSelfContained(framework, rid);
-        }
-
-        ////////////////////////////////////////////////////////////////
-        /// Get framework from deps file. We will determine RID from current dotnet host.
-        ////////////////////////////////////////////////////////////////
-        private void GetCrossGenTargetForPortable(RuntimeConfig runtimeConfig)
-        {
-            var framework = NuGetFramework.Parse(_depsFileContext.Target.Framework);
-            var rid = RuntimeEnvironment.GetRuntimeIdentifier();
-            Reporter.Verbose.WriteLine($"Assuming the app will be run using the current cli, we will CrossGen with the RID {rid}");
-            var sharedFrameworkPath = LocateSharedFramework(runtimeConfig.Framework);
-            _crossGenTarget = CrossGenTarget.CreatePortable(framework, rid, sharedFrameworkPath);
         }
 
         private string LocateSharedFramework(RuntimeConfigFramework framework)
@@ -233,7 +205,7 @@ namespace Microsoft.DotNet.Tools.CrossGen
             }
             else
             {
-                Reporter.Output.WriteLine($"Cannot find shared framework in: {exactMatch}, trying to auto roll forward.");
+                Reporter.Verbose.WriteLine($"Cannot find shared framework in: {exactMatch}, trying to auto roll forward.");
                 return AutoRollForward(shareFrameworksDir, version);
             }
         }

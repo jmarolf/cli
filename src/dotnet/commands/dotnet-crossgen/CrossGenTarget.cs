@@ -16,17 +16,7 @@ namespace Microsoft.DotNet.Tools.CrossGen
             get { return SharedFrameworkDir != null; }
         }
 
-        public static CrossGenTarget CreatePortable(NuGetFramework framework, string rid, string sharedFrameworkDir)
-        {
-            return new CrossGenTarget(framework, rid, sharedFrameworkDir);
-        }
-
-        public static CrossGenTarget CreateSelfContained(NuGetFramework framework, string rid)
-        {
-            return new CrossGenTarget(framework, rid, null);
-        }
-
-        private CrossGenTarget(NuGetFramework framework, string rid, string sharedFrameworkDir)
+        public CrossGenTarget(NuGetFramework framework, string rid, string sharedFrameworkDir)
         {
             Framework = framework;
             RID = rid;
