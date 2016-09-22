@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using Microsoft.Build.Evaluation;
 using Microsoft.Build.Construction;
 using Microsoft.DotNet.ProjectModel;
+using Microsoft.DotNet.ProjectModel.Graph;
 using Microsoft.DotNet.Cli;
 using System.Linq;
 using System.IO;
@@ -25,6 +26,7 @@ namespace Microsoft.DotNet.ProjectJsonMigration
         //     - Migrating Deprecated project.jsons
 
         private readonly IMigrationRule _ruleSet;
+        private readonly HashSet<string> _migratedProjects = new HashSet<string>();
 
         public ProjectMigrator() : this(new DefaultMigrationRuleSet()) { }
 
@@ -33,14 +35,51 @@ namespace Microsoft.DotNet.ProjectJsonMigration
             _ruleSet = ruleSet;
         }
 
-        public void Migrate(MigrationSettings migrationSettings)
+        public void Migrate(MigrationSettings settings, bool skipProjectReferences = false)
         {
-            var migrationRuleInputs = ComputeMigrationRuleInputs(migrationSettings);
-            VerifyInputs(migrationRuleInputs, migrationSettings);
+            if (settings == null)
+            {
+                throw new ArgumentNullException();
+            }
 
-            SetupOutputDirectory(migrationSettings.ProjectDirectory, migrationSettings.OutputDirectory);
+            Queue<MigrationSettings> settingsQueue = new Queue<MigrationSettings>();
+            settingsQueue.Enqueue(settings);
 
-            _ruleSet.Apply(migrationSettings, migrationRuleInputs);
+            while(settingsQueue.Count() != 0)
+            {
+                var migrationSettings = settingsQueue.Dequeue();
+                var migrationRuleInputs = ComputeMigrationRuleInputs(migrationSettings);
+                VerifyInputs(migrationRuleInputs, migrationSettings);
+
+                SetupOutputDirectory(migrationSettings.ProjectDirectory, migrationSettings.OutputDirectory);
+
+                _ruleSet.Apply(migrationSettings, migrationRuleInputs);
+                _migratedProjects.Add(migrationSettings.ProjectDirectory);
+
+                if (skipProjectReferences)
+                {
+                    continue;
+                }
+
+                var projectContext = migrationRuleInputs.DefaultProjectContext;
+                var projectExports = projectContext.CreateExporter("_").GetDependencies(LibraryType.Project);
+
+                foreach(var export in projectExports)
+                {
+                    var projectFile = ((ProjectDescription)export.Library).Project.ProjectFilePath;
+                    var projectDir = Path.GetDirectoryName(projectFile);
+
+                    if (_migratedProjects.Contains(projectDir))
+                    {
+                        continue;
+                    }
+
+                    var referenceMigrationSettings = new MigrationSettings(migrationSettings);
+                    referenceMigrationSettings.ProjectDirectory = projectDir;
+                    referenceMigrationSettings.OutputDirectory = projectDir;
+                    settingsQueue.Enqueue(referenceMigrationSettings);
+                }
+            }
         }
 
         private MigrationRuleInputs ComputeMigrationRuleInputs(MigrationSettings migrationSettings)

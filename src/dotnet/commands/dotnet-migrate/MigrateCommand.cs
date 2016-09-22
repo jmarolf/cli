@@ -16,16 +16,17 @@ namespace Microsoft.DotNet.Tools.Migrate
         private readonly string _outputDirectory;
         private readonly string _projectJson;
         private readonly string _sdkVersion;
+        private readonly bool _skipProjectReferences;
 
         private readonly TemporaryDotnetNewTemplateProject _temporaryDotnetNewProject;
 
-        public MigrateCommand(string templateFile, string outputDirectory, string projectJson, string sdkVersion)
+        public MigrateCommand(string templateFile, string outputDirectory, string projectJson, string sdkVersion, bool skipProjectReferences)
         {
             _templateFile = templateFile;
             _outputDirectory = outputDirectory;
             _projectJson = projectJson;
             _sdkVersion = sdkVersion;
-
+            _skipProjectReferences = skipProjectReferences;
             _temporaryDotnetNewProject = new TemporaryDotnetNewTemplateProject();
         }
 
@@ -45,7 +46,7 @@ namespace Microsoft.DotNet.Tools.Migrate
             EnsureNotNull(sdkVersion, "Null Sdk Version");
 
             var migrationSettings = new MigrationSettings(projectDirectory, outputDirectory, sdkVersion, msBuildTemplate);
-            new ProjectMigrator().Migrate(migrationSettings);
+            new ProjectMigrator().Migrate(migrationSettings, _skipProjectReferences);
 
             return 0;
         }

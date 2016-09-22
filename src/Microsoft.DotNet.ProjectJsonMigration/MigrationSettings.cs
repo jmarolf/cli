@@ -15,8 +15,8 @@ namespace Microsoft.DotNet.ProjectJsonMigration
 {
     public class MigrationSettings
     {
-        public string ProjectDirectory { get; }
-        public string OutputDirectory { get; }
+        public string ProjectDirectory { get; internal set; }
+        public string OutputDirectory { get; internal set; }
         public string SdkPackageVersion { get; }
         public ProjectRootElement MSBuildProjectTemplate { get; }
 
@@ -30,6 +30,14 @@ namespace Microsoft.DotNet.ProjectJsonMigration
             OutputDirectory = outputDirectory;
             SdkPackageVersion = sdkPackageVersion;
             MSBuildProjectTemplate = msBuildProjectTemplate;
+        }
+
+        public MigrationSettings(MigrationSettings settings)
+        {
+            ProjectDirectory = settings.ProjectDirectory;
+            OutputDirectory = settings.OutputDirectory;
+            SdkPackageVersion = settings.SdkPackageVersion;
+            MSBuildProjectTemplate = settings.MSBuildProjectTemplate;
         }
     }
 }
