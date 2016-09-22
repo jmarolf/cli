@@ -16,11 +16,9 @@ namespace Microsoft.DotNet.Tools.CrossGen.Operations
             try
             {
                 using (var inStream = File.OpenRead(pathToFile))
+                using (var peReader = new PEReader(inStream))
                 {
-                    using (var peReader = new PEReader(inStream))
-                    {
-                        hasMetadata = peReader.HasMetadata;
-                    }
+                    hasMetadata = peReader.HasMetadata;
                 }
             }
             catch (BadImageFormatException) { }

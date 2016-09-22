@@ -6,7 +6,7 @@ namespace Microsoft.DotNet.Tools.CrossGen.Exceptions
 {
     public class CrossGenException : Exception
     {
-        public CrossGenException(string msg, Exception cause = null)
-            : base(msg, cause) { }
+        public CrossGenException(string msg, Exception innerException = null)
+            : base(msg, innerException) { }
     }
 }
