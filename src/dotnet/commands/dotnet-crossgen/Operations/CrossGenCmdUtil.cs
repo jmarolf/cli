@@ -68,6 +68,7 @@ namespace Microsoft.DotNet.Tools.CrossGen.Operations
                 .WorkingDirectory(appPath)
                 // disable partial ngen
                 .EnvironmentVariable("COMPlus_PartialNGen", "0")
+                .CaptureStdOut()
                 .CaptureStdErr();
 
             var result = cmd.Execute();
@@ -87,6 +88,7 @@ namespace Microsoft.DotNet.Tools.CrossGen.Operations
                 var pdbArgs = string.Join(" ", GetArgs(appPath, assemblyLocation, module, platformAssembliesPaths, outputDirectory, true));
                 var pdbCmd = Command.Create(new CommandSpec(_crossgenPath, pdbArgs, CommandResolutionStrategy.None))
                                 .WorkingDirectory(appPath)
+                                .CaptureStdOut()
                                 .CaptureStdErr();
 
                 var pdbResult = pdbCmd.Execute();
